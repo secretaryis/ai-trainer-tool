@@ -1,0 +1,14 @@
+PyQt5
+transformers
+torch
+datasets
+psutil
+PyPDF2
+onnx
+safetensors
+llama-cpp-python
+accelerate
+huggingface_hub
+requests
+pyinstaller
+pytest

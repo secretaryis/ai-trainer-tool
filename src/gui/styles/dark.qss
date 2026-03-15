@@ -1,0 +1,6 @@
+QMainWindow { background-color: #12131a; color: #e5e7ed; }
+QGroupBox { font-weight: bold; border: 1px solid #2c2f3a; border-radius: 6px; margin-top: 8px; }
+QGroupBox::title { subcontrol-origin: margin; left: 10px; padding: 0 6px 0 6px; }
+QPushButton { padding: 6px 14px; border: 1px solid #2c2f3a; border-radius: 4px; background: #1c1f2a; color: #e5e7ed; }
+QPushButton:hover { background: #222634; }
+QProgressBar { border: 1px solid #2c2f3a; border-radius: 4px; text-align: center; }
