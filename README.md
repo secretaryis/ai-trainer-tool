@@ -15,7 +15,7 @@ A comprehensive GUI desktop application for Linux that simplifies training small
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/yourusername/ai-trainer-tool.git
+   git clone https://github.com/secretaryis/ai-trainer-tool.git
    cd ai-trainer-tool
    ```
 
