@@ -34,8 +34,8 @@ A comprehensive GUI desktop application for Linux that simplifies training small
 
 4. Run the application:
    ```bash
- .venv/bin/python src/main.py
-```
+  .venv/bin/python src/main.py
+  ```
 
 ### Optional flags
 - Install OCR helpers: `./install.sh --with-ocr`
