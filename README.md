@@ -34,7 +34,7 @@ A comprehensive GUI desktop application for Linux that simplifies training small
 
 4. Run the application:
    ```bash
-python src/main.py
+.venv/bin/python src/main.py
 ```
 
 ### Optional flags
