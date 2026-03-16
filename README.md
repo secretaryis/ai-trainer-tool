@@ -1,4 +1,4 @@
-# AI Trainer Tool
+AI Trainer Tool
 
 A comprehensive GUI desktop application for Linux that simplifies training small AI models on CPU for beginners, with seamless integration to run trained models locally via Ollama for interactive testing.
 
@@ -48,3 +48,7 @@ A comprehensive GUI desktop application for Linux that simplifies training small
 ## License
 
 MIT License
+
+
+
+**ملاحظة:** تأكد من توفر المتطلبات الأساسية (Python 3.8+، pip) قبل البدء.# 
