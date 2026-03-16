@@ -4,6 +4,7 @@ block_cipher = None
 added_files = [
     ('src/gui/styles/light.qss', 'gui/styles'),
     ('src/gui/styles/dark.qss', 'gui/styles'),
+    ('src/gui/styles/high_contrast.qss', 'gui/styles'),
 ]
 
 a = Analysis(['src/main.py'],

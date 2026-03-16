@@ -1,5 +1,15 @@
-import torch
-from transformers import AutoTokenizer
+from utils.deps import require
+
+torch_ok, torch_msg = require("torch", "PyTorch", optional=True)
+transformers_ok, tf_msg = require("transformers", "transformers", optional=True)
+if torch_ok:
+    import torch  # type: ignore
+else:
+    torch = None
+if transformers_ok:
+    from transformers import AutoTokenizer  # type: ignore
+else:
+    AutoTokenizer = None
 import os
 import shutil
 import subprocess
@@ -16,6 +26,7 @@ class ModelExporter:
         self.tokenizer = tokenizer
         self.model_path = model_path
         self.convert_script = self._ensure_convert_script()
+        self.convert_timeout = 1800  # seconds
 
     def _ensure_convert_script(self):
         cache_dir = Path.home() / ".cache" / "ai_trainer"
@@ -33,6 +44,8 @@ class ModelExporter:
 
     def export_pytorch(self, output_path):
         """Export as PyTorch model."""
+        if not torch_ok or AutoTokenizer is None:
+            return False, f"Missing dependencies: {(tf_msg if AutoTokenizer is None else '')} {(torch_msg if not torch_ok else '')}".strip()
         try:
             self.model.save_pretrained(output_path)
             self.tokenizer.save_pretrained(output_path)
@@ -42,6 +55,8 @@ class ModelExporter:
 
     def export_safetensors(self, output_path):
         """Export as SafeTensors."""
+        if not torch_ok or AutoTokenizer is None:
+            return False, f"Missing dependencies: {(tf_msg if AutoTokenizer is None else '')} {(torch_msg if not torch_ok else '')}".strip()
         try:
             self.model.save_pretrained(output_path, safe_serialization=True)
             self.tokenizer.save_pretrained(output_path)
@@ -50,26 +65,38 @@ class ModelExporter:
             return False, f"SafeTensors export failed: {str(e)}"
 
     def export_onnx(self, output_path):
-        """Export as ONNX (basic implementation)."""
+        """Export as ONNX using transformers' built-in exporter."""
+        if AutoTokenizer is None:
+            return False, tf_msg
         try:
-            # This is a simplified version. For full ONNX export, use optimum
-            from transformers.onnx import export
-            onnx_path = os.path.join(output_path, "model.onnx")
-            export(self.model, self.tokenizer, onnx_path, "text-generation")
+            from pathlib import Path as _Path
+            from transformers.onnx import FeaturesManager, export
+
+            feature = "text-generation"
+            _, onnx_config_cls = FeaturesManager.check_supported_model_or_raise(self.model, feature=feature)
+            onnx_config = onnx_config_cls(self.model.config)
+            onnx_path = _Path(output_path) / "model.onnx"
+            export(
+                preprocessor=self.tokenizer,
+                model=self.model,
+                config=onnx_config,
+                opset=onnx_config.DEFAULT_ONNX_OPSET,
+                output=onnx_path,
+            )
             self.tokenizer.save_pretrained(output_path)
-            return True, f"ONNX model exported to {output_path}"
+            return True, f"ONNX model exported to {onnx_path}"
         except ImportError:
-            return False, "ONNX export requires 'optimum' package. Install with: pip install optimum"
+            return False, "ONNX export requires 'transformers[onnx]' or 'optimum'. Install with: pip install transformers[onnx]"
         except Exception as e:
             return False, f"ONNX export failed: {str(e)}"
 
     def export_gguf(self, output_path):
-        """Export as GGUF for Ollama."""
+        """Export as GGUF for Ollama with clearer errors and cleanup."""
+        tmp_dir = None
         try:
             if not self.convert_script:
                 return False, "convert.py not available. Check internet connection."
 
-            # Save to temp pytorch dir first
             tmp_dir = tempfile.mkdtemp(prefix="gguf_tmp_")
             self.model.save_pretrained(tmp_dir)
             self.tokenizer.save_pretrained(tmp_dir)
@@ -78,14 +105,20 @@ class ModelExporter:
             gguf_path = os.path.join(output_path, "model.gguf")
 
             cmd = ["python", self.convert_script, "--outfile", gguf_path, tmp_dir]
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=1800)
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=self.convert_timeout)
             if result.returncode != 0:
-                return False, f"GGUF convert failed: {result.stderr[:200]}"
+                stderr = result.stderr.strip() if result.stderr else "Unknown error"
+                return False, f"GGUF convert failed: {stderr[:400]}"
+            if not os.path.exists(gguf_path):
+                return False, "GGUF convert finished without output file."
             return True, f"GGUF model exported to {gguf_path}"
         except subprocess.TimeoutExpired:
             return False, "GGUF convert timed out."
         except Exception as e:
             return False, f"GGUF export failed: {str(e)}"
+        finally:
+            if tmp_dir and os.path.isdir(tmp_dir):
+                shutil.rmtree(tmp_dir, ignore_errors=True)
 
     def export_all(self, base_path, formats=['pytorch', 'safetensors']):
         """Export model in multiple formats."""

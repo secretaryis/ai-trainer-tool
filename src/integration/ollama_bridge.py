@@ -64,6 +64,12 @@ class OllamaBridge:
         except Exception as e:
             return False, f"Error creating model: {str(e)}"
 
+    def create_and_register(self, model_name, modelfile_path="Modelfile"):
+        """Helper to create a model, returning status plus install hint when unavailable."""
+        if not self.ollama_available:
+            return False, self.get_install_instructions()
+        return self.create_ollama_model(model_name, modelfile_path)
+
     def run_ollama_model(self, model_name):
         """Run the model in Ollama (opens interactive session)."""
         if not self.ollama_available:

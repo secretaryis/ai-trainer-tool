@@ -1,0 +1,39 @@
+{
+    "language": "en",
+    "theme": "light",
+    "last_model": "",
+    "training_defaults": {
+        "batch_size": 4,
+        "max_length": 128,
+        "epochs": 3,
+        "grad_accum": 1,
+        "dataloader_workers": 0,
+        "seed": 42
+    },
+    "inference_defaults": {
+        "temperature": 0.2,
+        "top_p": 0.8,
+        "repetition_penalty": 1.1,
+        "max_new_tokens": 64,
+        "seed": 42
+    },
+    "export_formats": [
+        "pytorch",
+        "safetensors"
+    ],
+    "data_clean_level": "medium",
+    "data_lang_detect": true,
+    "auto_clean": false,
+    "extract_backend": "auto",
+    "extract_tables": false,
+    "post_spellcheck": false,
+    "ocr_engine": "easyocr",
+    "use_cache": true,
+    "max_workers": 0,
+    "window_geometry": [
+        0,
+        27,
+        1024,
+        736
+    ]
+}

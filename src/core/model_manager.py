@@ -1,6 +1,18 @@
-from transformers import AutoModelForCausalLM, AutoTokenizer
 from huggingface_hub import HfApi
-import torch
+import importlib
+from utils.deps import require
+torch_ok, torch_msg = require("torch", "PyTorch", optional=True)
+if torch_ok:
+    import torch  # type: ignore
+else:
+    torch = type("TorchFallback", (), {
+        "cuda": type("Cuda", (), {
+            "is_available": staticmethod(lambda: False),
+            "device_count": staticmethod(lambda: 0),
+            "empty_cache": staticmethod(lambda: None)
+        })(),
+        "float32": None,
+    })()
 import os
 import time
 import gc
@@ -24,6 +36,7 @@ class ModelManager:
         self.loaded_model = None
         self.loaded_tokenizer = None
         self.license_cache = {}
+        self.model_info_cache = {}
 
     def get_popular_models(self):
         """Return list of popular models."""
@@ -41,27 +54,41 @@ class ModelManager:
                     return []
                 time.sleep(RETRY_BACKOFF ** attempt)
 
-    def load_model(self, model_name, progress_callback=None, device_preference=None):
+    def load_model(self, model_name, progress_callback=None, progress_percent=None, device_preference=None):
         """Load model and tokenizer with retries and device hint."""
         device_map = None
         if torch.cuda.is_available() and device_preference == 'cuda':
             device_map = "auto"
+
+        transformers_ok, transformers_msg = require("transformers", "transformers", optional=True)
+        if not transformers_ok or not torch_ok:
+            return False, f"Missing dependency: {transformers_msg if not transformers_ok else torch_msg}"
+        transformers = importlib.import_module("transformers")
+        AutoTokenizer = transformers.AutoTokenizer
+        AutoModelForCausalLM = transformers.AutoModelForCausalLM
+
         for attempt in range(DEFAULT_RETRIES):
             try:
                 if progress_callback:
                     progress_callback("Downloading tokenizer...")
+                if progress_percent:
+                    progress_percent(5)
                 self.loaded_tokenizer = AutoTokenizer.from_pretrained(model_name)
                 if self.loaded_tokenizer.pad_token is None:
                     self.loaded_tokenizer.pad_token = self.loaded_tokenizer.eos_token
 
                 if progress_callback:
                     progress_callback("Downloading model...")
+                if progress_percent:
+                    progress_percent(20)
                 self.loaded_model = AutoModelForCausalLM.from_pretrained(
                     model_name,
                     torch_dtype=torch.float32,
                     device_map=device_map,
                     low_cpu_mem_usage=True,
                 )
+                if progress_percent:
+                    progress_percent(100)
                 return True, "Model loaded successfully."
             except Exception as e:
                 if attempt == DEFAULT_RETRIES - 1:
@@ -70,6 +97,8 @@ class ModelManager:
 
     def get_model_info(self, model_name):
         """Get model information including size estimate."""
+        if model_name in self.model_info_cache:
+            return self.model_info_cache[model_name]
         try:
             model_info = self.api.model_info(model_name)
             # Estimate size (rough calculation)
@@ -77,21 +106,25 @@ class ModelManager:
                 size_gb = sum(f.size for f in model_info.safetensors) / (1024**3)
             else:
                 size_gb = 0.5  # Default estimate
-            return {
+            info = {
                 'name': model_name,
                 'size_gb': round(size_gb, 2),
                 'downloads': getattr(model_info, 'downloads', 0),
                 'likes': getattr(model_info, 'likes', 0),
                 'license': getattr(model_info, 'license', 'unknown'),
             }
+            self.model_info_cache[model_name] = info
+            return info
         except Exception as e:
-            return {
+            info = {
                 'name': model_name,
                 'size_gb': 0.5,  # Default
                 'downloads': 0,
                 'likes': 0,
                 'license': 'unknown',
             }
+            self.model_info_cache[model_name] = info
+            return info
 
     def unload_model(self):
         """Unload the current model to free memory."""
@@ -115,3 +148,11 @@ class ModelManager:
             return license_id
         except Exception:
             return 'unknown'
+
+    def get_top_models(self, limit=10):
+        """Return top models by downloads as suggestions."""
+        try:
+            models = self.api.list_models(sort="downloads", direction=-1, limit=limit)
+            return [m.modelId for m in models]
+        except Exception:
+            return self.popular_models[:limit]
